@@ -47,45 +47,46 @@ data RouteContext segment t = RouteContext
   }
 
 
-class (Reflex t, Monad m) => HasRoute segment t m | m -> segment, m -> t where
+class (Reflex t, Monad m) => HasRoute t segment m | m -> segment, m -> t where
   routeContext :: m (RouteContext segment t)
   withSegments :: (RouteContext segment t -> RouteContext segment t) -> m a -> m a
 
 
-newtype RouteT segment t m a = RouteT { unRouteT :: ReaderT (RouteContext segment t) m a }
+newtype RouteT t segment m a = RouteT { unRouteT :: ReaderT (RouteContext segment t) m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t,
             MonadSample t, MonadAsyncException, MonadException, MonadTrans, PostBuild t,
             MonadReflexCreateTrigger t, TriggerEvent t, MonadAtomicRef)
 
-instance (MonadWidget t m) => HasRoute segment t (RouteT segment t m) where
+
+instance (MonadWidget t m) => HasRoute t segment (RouteT t segment m) where
   routeContext = RouteT ask
   withSegments f (RouteT m) = RouteT $ local f m
 
-instance Requester t m => Requester t (RouteT segment t m) where
-  type Request (RouteT segment t m) = Request m
-  type Response (RouteT segment t m) = Response m
+instance Requester t m => Requester t (RouteT t segment m) where
+  type Request (RouteT t segment m) = Request m
+  type Response (RouteT t segment m) = Response m
   requesting = lift . requesting
   requesting_ = lift . requesting_
 
-instance HasRoute segment t m => HasRoute segment t (RequesterT t request response m) where
+instance HasRoute t segment m => HasRoute t segment (RequesterT t request response m) where
   routeContext = lift routeContext
   withSegments f (RequesterT a) = RequesterT $ StrictState.mapStateT (mapReaderT $ withSegments f) a
 
-instance Wrapped (RouteT segment t m a) where
-  type Unwrapped (RouteT segment t m a) = ReaderT (RouteContext segment t) m a
+instance Wrapped (RouteT t segment m a) where
+  type Unwrapped (RouteT t segment m a) = ReaderT (RouteContext segment t) m a
   _Wrapped' = iso coerce coerce
 
-instance RouteT segment t m a ~ x => Rewrapped (RouteT segment t m a) x
+instance RouteT t segment m a ~ x => Rewrapped (RouteT t segment m a) x
 
-instance PerformEvent t m => PerformEvent t (RouteT segment t m) where
- type Performable (RouteT segment t m) = Performable m
+instance PerformEvent t m => PerformEvent t (RouteT t segment m) where
+ type Performable (RouteT t segment m) = Performable m
  {-# INLINABLE performEvent_ #-}
  performEvent_ = lift . performEvent_
  {-# INLINABLE performEvent #-}
  performEvent = lift . performEvent
 
-instance MonadRef m => MonadRef (RouteT segment t m) where
-  type Ref (RouteT segment t m) = Ref m
+instance MonadRef m => MonadRef (RouteT t segment m) where
+  type Ref (RouteT t segment m) = Ref m
   {-# INLINABLE newRef #-}
   newRef = lift . newRef
   {-# INLINABLE readRef #-}
@@ -93,14 +94,14 @@ instance MonadRef m => MonadRef (RouteT segment t m) where
   {-# INLINABLE writeRef #-}
   writeRef r = lift . writeRef r
 
-instance (MonadAdjust t m, MonadHold t m) => MonadAdjust t (RouteT segment t m) where
+instance (MonadAdjust t m, MonadHold t m) => MonadAdjust t (RouteT t segment m) where
   runWithReplace a0 a' = RouteT $ runWithReplace (unRouteT a0) (fmapCheap unRouteT a')
   traverseDMapWithKeyWithAdjust f dm edm = RouteT $ traverseDMapWithKeyWithAdjust (\k v -> unRouteT $ f k v) (coerce dm) (coerceEvent edm)
   {-# INLINABLE traverseDMapWithKeyWithAdjust #-}
   traverseDMapWithKeyWithAdjustWithMove f dm edm = RouteT $ traverseDMapWithKeyWithAdjustWithMove (\k v -> unRouteT $ f k v) (coerce dm) (coerceEvent edm)
 
-instance (DomBuilder t m, MonadHold t m, MonadFix m) => DomBuilder t (RouteT segment t m) where
-  type DomBuilderSpace (RouteT segment t m) = DomBuilderSpace m
+instance (DomBuilder t m, MonadHold t m, MonadFix m) => DomBuilder t (RouteT t segment m) where
+  type DomBuilderSpace (RouteT t segment m) = DomBuilderSpace m
   textNode = lift . textNode
   element elementTag cfg (RouteT child) = RouteT $ element elementTag cfg child
   inputElement = lift . inputElement
@@ -109,29 +110,30 @@ instance (DomBuilder t m, MonadHold t m, MonadFix m) => DomBuilder t (RouteT seg
   placeRawElement = lift . placeRawElement
   wrapRawElement e = lift . wrapRawElement e
 
-instance MonadReader r m => MonadReader r (RouteT segment t m) where
+instance MonadReader r m => MonadReader r (RouteT t segment m) where
   ask = lift ask
   local f (RouteT a) = RouteT $ mapReaderT (local f) a
 
-instance MonadState s m => MonadState s (RouteT segment t m) where
-  get = lift get
-  put s = lift $ put s
+deriving instance MonadState s m => MonadState s (RouteT t segment m)
 
-instance EventWriter t w m => EventWriter t w (RouteT segment t m) where
+instance HasRoute t segment m => HasRoute t segment (EventWriterT t w m) where
+  routeContext = lift routeContext
+  withSegments f (EventWriterT a) = EventWriterT $ StrictState.mapStateT (withSegments f) a
+
+instance EventWriter t w m => EventWriter t w (RouteT t segment m) where
   tellEvent = lift . tellEvent
 
-
-instance HasDocument m => HasDocument (RouteT segment t m)
-instance HasJSContext m => HasJSContext (RouteT segment t m) where
-  type JSContextPhantom (RouteT segment t m) = JSContextPhantom m
+instance HasDocument m => HasDocument (RouteT t segment m)
+instance HasJSContext m => HasJSContext (RouteT t segment m) where
+  type JSContextPhantom (RouteT t segment m) = JSContextPhantom m
   askJSContext = RouteT askJSContext
 #ifndef ghcjs_HOST_OS
-instance MonadJSM m => MonadJSM (RouteT segment t m)
+instance MonadJSM m => MonadJSM (RouteT t segment m)
 #endif
 
 
-instance PrimMonad m => PrimMonad (RouteT segment t m) where
-  type PrimState (RouteT segment t m) = PrimState m
+instance PrimMonad m => PrimMonad (RouteT t segment m) where
+  type PrimState (RouteT t segment m) = PrimState m
   primitive = lift . primitive
 
 --instance HasMountStatus t m => HasMountStatus t (RouteT segment r m) where
@@ -141,7 +143,7 @@ instance PrimMonad m => PrimMonad (RouteT segment t m) where
 runRoute :: forall segment t m. (MonadWidget t m, Eq segment)
          => (forall a. URIRef a -> [segment])
          -> (forall a. URIRef a -> [segment] -> URIRef a)
-         -> RouteT segment t m (Event t [segment])
+         -> RouteT t segment m (Event t [segment])
          -> m ()
 runRoute toSegments fromSegments (RouteT f) = do
   let
@@ -167,7 +169,7 @@ runRoute toSegments fromSegments (RouteT f) = do
 
 runRouteWithPathInFragment
   :: forall t m. (MonadWidget t m)
-  => RouteT Text t m (Event t [Text])
+  => RouteT t Text m (Event t [Text])
   -> m ()
 runRouteWithPathInFragment = runRoute
   (T.splitOn "/" . T.dropAround (=='/') . fragAsText)
@@ -175,7 +177,7 @@ runRouteWithPathInFragment = runRoute
 
 
 withRoute
-  :: forall a segment t m. (DomBuilder t m, MonadFix m, PostBuild t m, MonadHold t m, HasRoute segment t m, Eq segment)
+  :: forall a segment t m. (DomBuilder t m, MonadFix m, PostBuild t m, MonadHold t m, HasRoute t segment m, Eq segment)
   => (Maybe segment -> m a)
   -- ^ A routing function that produces a widget from a segment.
   -> m (Event t a)
@@ -209,18 +211,26 @@ withRoute f = do
   switchPromptly never =<< dyn component
 
 
-allRouteSegments :: (Reflex t, MonadHold t m, MonadFix m, HasRoute segment t m, Eq segment) => m (Dynamic t [segment])
+allRouteSegments :: (MonadHold t m, MonadFix m, HasRoute t segment m, Eq segment) => m (Dynamic t [segment])
 allRouteSegments = _routeContext_allSegments <$> routeContext
 
-currentRouteSegment :: (Functor m, HasRoute segment t m) => m (Dynamic t (Maybe segment))
+currentRouteSegment :: (Functor m, HasRoute t segment m) => m (Dynamic t (Maybe segment))
 currentRouteSegment = _routeContext_currentSegment <$> routeContext
 
-nextRouteSegment :: (Reflex t, MonadHold t m, MonadFix m, HasRoute segment t m, Eq segment) => m (Dynamic t (Maybe segment))
+nextRouteSegment :: (MonadHold t m, MonadFix m, HasRoute t segment m, Eq segment) => m (Dynamic t (Maybe segment))
 nextRouteSegment = do
   ctx <- routeContext
   holdUniqDyn (listToMaybe <$> _routeContext_nextSegments ctx)
 
-redirectLocally :: (MonadWidget t m, HasRoute segment t m) => [segment] -> m (Event t [segment])
+parentRouteSegments :: (MonadHold t m, MonadFix m, HasRoute t segment m, Eq segment) => m (Dynamic t [segment])
+parentRouteSegments = do
+  ctx <- routeContext
+  holdUniqDyn $ do
+    allSegments <- _routeContext_allSegments ctx
+    nBelow <- length <$> _routeContext_nextSegments ctx
+    pure $ take (length allSegments - nBelow) allSegments
+
+redirectLocally :: (PostBuild t m) => [segment] -> m (Event t [segment])
 redirectLocally segments = (segments <$) <$> getPostBuild
 
 
@@ -233,3 +243,6 @@ fragAsText uri = maybe "" decodeUtf8 (uri ^. fragmentL)
 pathSegments :: URIRef a -> [ByteString]
 pathSegments uri =  uri ^. pathL . to (B8.split '/')
 
+-- ^ Like 'switchPromptly' but without being prompt.
+switchTardy :: (MonadHold t m, Reflex t) => Event t (Event t a) -> m (Event t a)
+switchTardy x = switch <$> hold never x
