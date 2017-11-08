@@ -12,8 +12,10 @@
 
 module Reflex.Dom.NestedRoute where
 
-import           Control.Lens                 (Rewrapped, Wrapped(..), iso, to, (^.))
-import           Control.Monad.Exception      (MonadAsyncException, MonadException)
+import           Control.Lens                 (Rewrapped, Wrapped (..), iso, to,
+                                               (^.))
+import           Control.Monad.Exception      (MonadAsyncException,
+                                               MonadException)
 import           Control.Monad.Fix
 import           Control.Monad.Primitive      (PrimMonad, PrimState, primitive)
 import           Control.Monad.Reader
@@ -41,9 +43,10 @@ import           URI.ByteString               (URIRef, fragmentL, pathL)
 
 
 data RouteContext segment t = RouteContext
-  { _routeContext_allSegments    :: Dynamic t [segment]
-  , _routeContext_nextSegments   :: Dynamic t [segment]
-  , _routeContext_currentSegment :: Dynamic t (Maybe segment)
+  { _routeContext_allSegments    :: !(Dynamic t [segment])
+  , _routeContext_nextSegments   :: !(Dynamic t [segment])
+  , _routeContext_currentSegment :: !(Dynamic t (Maybe segment))
+  , _routeContext_currentDepth   :: !Int
   }
 
 
@@ -94,7 +97,7 @@ instance MonadRef m => MonadRef (RouteT t segment m) where
   {-# INLINABLE writeRef #-}
   writeRef r = lift . writeRef r
 
-instance (MonadAdjust t m, MonadHold t m) => MonadAdjust t (RouteT t segment m) where
+instance (Adjustable t m, MonadHold t m) => Adjustable t (RouteT t segment m) where
   runWithReplace a0 a' = RouteT $ runWithReplace (unRouteT a0) (fmapCheap unRouteT a')
   traverseDMapWithKeyWithAdjust f dm edm = RouteT $ traverseDMapWithKeyWithAdjust (\k v -> unRouteT $ f k v) (coerce dm) (coerceEvent edm)
   {-# INLINABLE traverseDMapWithKeyWithAdjust #-}
@@ -161,6 +164,7 @@ runRoute toSegments fromSegments (RouteT f) = do
         ctx = RouteContext{ _routeContext_allSegments    = allSegments
                           , _routeContext_nextSegments   = allSegments
                           , _routeContext_currentSegment = pure Nothing
+                          , _routeContext_currentDepth   = 0
                           }
       newSegments <- runReaderT f ctx
       let x = ffor uri $ \uri' -> fromSegments uri' <$> newSegments
@@ -187,12 +191,15 @@ withRoute f = do
   segmentsNested <- maybeDyn segmentsFlat
 
   let
+    nextDepth = 1 + _routeContext_currentDepth ctx
+
     component = ffor segmentsNested $ \x -> case x of
       Nothing            -> do
         let
           segment = Nothing
           newCtx  = ctx{ _routeContext_currentSegment = pure segment
                        , _routeContext_nextSegments   = pure []
+                       , _routeContext_currentDepth   = nextDepth
                        }
 
         a <- withSegments (const newCtx) (f segment)
@@ -203,6 +210,7 @@ withRoute f = do
         segmentDyn <- fmap Just <$> holdUniqDyn (fst <$> segmentUncons)
         let newCtx = ctx{ _routeContext_currentSegment = segmentDyn
                         , _routeContext_nextSegments   = snd <$> segmentUncons
+                        , _routeContext_currentDepth   = nextDepth
                         }
 
         dyn $ ffor segmentDyn $ \segment ->
@@ -227,8 +235,7 @@ parentRouteSegments = do
   ctx <- routeContext
   holdUniqDyn $ do
     allSegments <- _routeContext_allSegments ctx
-    nBelow <- length <$> _routeContext_nextSegments ctx
-    pure $ take (length allSegments - nBelow) allSegments
+    pure $ take (_routeContext_currentDepth ctx - 1) allSegments
 
 redirectLocally :: (PostBuild t m) => [segment] -> m (Event t [segment])
 redirectLocally segments = (segments <$) <$> getPostBuild
@@ -242,7 +249,3 @@ fragAsText uri = maybe "" decodeUtf8 (uri ^. fragmentL)
 
 pathSegments :: URIRef a -> [ByteString]
 pathSegments uri =  uri ^. pathL . to (B8.split '/')
-
--- ^ Like 'switchPromptly' but without being prompt.
-switchTardy :: (MonadHold t m, Reflex t) => Event t (Event t a) -> m (Event t a)
-switchTardy x = switch <$> hold never x
