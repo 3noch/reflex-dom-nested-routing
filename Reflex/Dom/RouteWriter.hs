@@ -5,13 +5,15 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
 module Reflex.Dom.RouteWriter where
 
-import           Control.Lens                 (Rewrapped, Wrapped(..), iso)
-import           Control.Monad.Exception      (MonadAsyncException, MonadException)
+import           Control.Lens                 (Rewrapped, Wrapped (..), iso)
+import           Control.Monad.Exception      (MonadAsyncException,
+                                               MonadException)
 import           Control.Monad.Fix
 import           Control.Monad.Primitive      (PrimMonad, PrimState, primitive)
 import           Control.Monad.Reader
@@ -26,13 +28,11 @@ import           Reflex.Dom.Builder.Immediate
 import           Reflex.Dom.Core
 import           Reflex.Host.Class
 
-import Reflex.Dom.NestedRoute
-
+import           Reflex.Dom.NestedRoute
 
 
 class (Reflex t, Monad m) => RouteWriter t segment m | m -> segment, m -> t where
   tellRoute :: Event t [segment] -> m ()
-
 
 newtype RouteWriterT t segment m a = RouteWriterT { unRouteWriterT :: EventWriterT t [segment] m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t,
@@ -75,7 +75,7 @@ instance MonadRef m => MonadRef (RouteWriterT t segment m) where
   {-# INLINABLE writeRef #-}
   writeRef r = lift . writeRef r
 
-instance (MonadAdjust t m, MonadHold t m) => MonadAdjust t (RouteWriterT t segment m) where
+instance (Adjustable t m, MonadHold t m) => Adjustable t (RouteWriterT t segment m) where
   runWithReplace a0 a' = RouteWriterT $ runWithReplace (unRouteWriterT a0) (fmapCheap unRouteWriterT a')
   traverseDMapWithKeyWithAdjust f dm edm = RouteWriterT $ traverseDMapWithKeyWithAdjust (\k v -> unRouteWriterT $ f k v) (coerce dm) (coerceEvent edm)
   {-# INLINABLE traverseDMapWithKeyWithAdjust #-}
@@ -125,6 +125,10 @@ runRouteWriterT (RouteWriterT m) = runEventWriterT m
 tellRedirectLocally :: (PostBuild t m, RouteWriter t segment m) => [segment] -> m ()
 tellRedirectLocally segments = tellRoute =<< redirectLocally segments
 
+-- | Alias for 'tellRedirectLocally'
+localRedirect :: (PostBuild t m, RouteWriter t segment m) => [segment] -> m ()
+localRedirect = tellRedirectLocally
+
 
 -- | Sets a new route to the given route whenever the given 'Event' fires, ignoring the 'Event' payload.
 tellRouteAs :: (RouteWriter t segment m) => [segment] -> Event t a -> m ()
@@ -149,3 +153,9 @@ tellRouteRelative
 tellRouteRelative ev = do
   parents <- parentRouteSegments
   tellRoute $ attachWith (++) (current parents) ev
+
+-- Like 'tellRouteAs' and 'tellRouteRelative'.
+tellRouteRelativeAs
+  :: (RouteWriter t segment m, HasRoute t segment m, MonadHold t m, MonadFix m, Eq segment)
+  => [segment] -> Event t a -> m ()
+tellRouteRelativeAs segments ev = tellRouteRelative (segments <$ ev)

@@ -7,6 +7,7 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecursiveDo                #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
@@ -142,7 +143,9 @@ instance PrimMonad m => PrimMonad (RouteT t segment m) where
 --instance HasMountStatus t m => HasMountStatus t (RouteT segment r m) where
 --  getMountStatus = lift getMountStatus
 
-
+-- | Runs a monadic action (in 'RouteT') over the current URL as "interpreted"
+-- by the given URL-parser. The action must return an 'Event' which can trigger
+-- the route to change.
 runRoute :: forall segment t m. (MonadWidget t m, Eq segment)
          => (forall a. URIRef a -> [segment])
          -> (forall a. URIRef a -> [segment] -> URIRef a)
@@ -170,7 +173,8 @@ runRoute toSegments fromSegments (RouteT f) = do
       let x = ffor uri $ \uri' -> fromSegments uri' <$> newSegments
       pure (switch (current x))
 
-
+-- | A very simple version of 'runRoute' that parses only the URL fragment
+-- and splits it over @/@. Each path segment is therefore nothing more than 'Text'.
 runRouteWithPathInFragment
   :: forall t m. (MonadWidget t m)
   => RouteT t Text m (Event t [Text])
@@ -179,7 +183,8 @@ runRouteWithPathInFragment = runRoute
   (T.splitOn "/" . T.dropAround (=='/') . fragAsText)
   (\oldUrl -> setFrag oldUrl . T.intercalate "/")
 
-
+-- | Introduces a new "layer" in the nested routing tree. The given function takes
+-- the current layer's route segment and builds the DOM for that segment.
 withRoute
   :: forall a segment t m. (DomBuilder t m, MonadFix m, PostBuild t m, MonadHold t m, HasRoute t segment m, Eq segment)
   => (Maybe segment -> m a)
@@ -218,18 +223,23 @@ withRoute f = do
 
   switchPromptly never =<< dyn component
 
-
+-- | All routing segments in the current URL.
 allRouteSegments :: (MonadHold t m, MonadFix m, HasRoute t segment m, Eq segment) => m (Dynamic t [segment])
 allRouteSegments = _routeContext_allSegments <$> routeContext
 
+-- | The routing segment at "this layer" in the tree. "This layer" is defined by how many
+-- nested 'withRoute's exist above the caller of this function.
 currentRouteSegment :: (Functor m, HasRoute t segment m) => m (Dynamic t (Maybe segment))
 currentRouteSegment = _routeContext_currentSegment <$> routeContext
 
+-- | The next layer's segment in the tree. Like 'withRoute' this can be used to switch
+-- over route segments, but it does not place a new layer in the tree.
 nextRouteSegment :: (MonadHold t m, MonadFix m, HasRoute t segment m, Eq segment) => m (Dynamic t (Maybe segment))
 nextRouteSegment = do
   ctx <- routeContext
   holdUniqDyn (listToMaybe <$> _routeContext_nextSegments ctx)
 
+-- | Route segments from parent layers.
 parentRouteSegments :: (MonadHold t m, MonadFix m, HasRoute t segment m, Eq segment) => m (Dynamic t [segment])
 parentRouteSegments = do
   ctx <- routeContext
@@ -237,6 +247,7 @@ parentRouteSegments = do
     allSegments <- _routeContext_allSegments ctx
     pure $ take (_routeContext_currentDepth ctx - 1) allSegments
 
+-- | A simple helper that produces a routing event on 'getPostBuild'.
 redirectLocally :: (PostBuild t m) => [segment] -> m (Event t [segment])
 redirectLocally segments = (segments <$) <$> getPostBuild
 
