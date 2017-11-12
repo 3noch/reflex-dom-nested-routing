@@ -180,8 +180,11 @@ runRouteWithPathInFragment
   => RouteT t Text m (Event t [Text])
   -> m ()
 runRouteWithPathInFragment = runRoute
-  (T.splitOn "/" . T.dropAround (=='/') . fragAsText)
+  (nullTextToEmptyList . T.splitOn "/" . T.dropAround (=='/') . fragAsText)
   (\oldUrl -> setFrag oldUrl . T.intercalate "/")
+  where
+    nullTextToEmptyList [""] = []
+    nullTextToEmptyList x    = x
 
 -- | Introduces a new "layer" in the nested routing tree. The given function takes
 -- the current layer's route segment and builds the DOM for that segment.
