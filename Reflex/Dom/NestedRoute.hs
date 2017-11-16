@@ -127,6 +127,13 @@ instance HasRoute t segment m => HasRoute t segment (EventWriterT t w m) where
 instance EventWriter t w m => EventWriter t w (RouteT t segment m) where
   tellEvent = lift . tellEvent
 
+instance HasRoute t segment m => HasRoute t segment (DynamicWriterT t w m) where
+  routeContext = lift routeContext
+  withSegments f (DynamicWriterT a) = DynamicWriterT $ StrictState.mapStateT (withSegments f) a
+
+instance MonadDynamicWriter t w m => MonadDynamicWriter t w (RouteT t segment m) where
+  tellDyn = lift . tellDyn
+
 instance HasDocument m => HasDocument (RouteT t segment m)
 instance HasJSContext m => HasJSContext (RouteT t segment m) where
   type JSContextPhantom (RouteT t segment m) = JSContextPhantom m

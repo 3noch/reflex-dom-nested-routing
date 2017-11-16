@@ -95,9 +95,14 @@ deriving instance MonadReader r m => MonadReader r (RouteWriterT t segment m)
 
 instance RouteWriter t segment m => RouteWriter t segment (EventWriterT t w m) where
   tellRoute = lift . tellRoute
-
 instance EventWriter t w m => EventWriter t w (RouteWriterT t segment m) where
   tellEvent = lift . tellEvent
+
+instance RouteWriter t segment m => RouteWriter t segment (DynamicWriterT t w m) where
+  tellRoute = lift . tellRoute
+instance MonadDynamicWriter t w m => MonadDynamicWriter t w (RouteWriterT t segment m) where
+  tellDyn = lift . tellDyn
+
 
 instance HasDocument m => HasDocument (RouteWriterT t segment m)
 instance HasJSContext m => HasJSContext (RouteWriterT t segment m) where
