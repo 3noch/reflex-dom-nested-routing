@@ -1,5 +1,5 @@
 name:           reflex-dom-nested-routing
-version:        0.0.2
+version:        0.0.3
 synopsis:       Nested client-side routing for Reflex-DOM
 description:    See README at <https://github.com/3noch/reflex-dom-nested-routing#readme>
 category:       Web
@@ -38,6 +38,6 @@ library
     , text
     , uri-bytestring
   exposed-modules:
-      Reflex.Dom.NestedRoute
-      Reflex.Dom.RouteWriter
+      Reflex.Dom.Routing.Nested
+      Reflex.Dom.Routing.Writer
   default-language: Haskell2010

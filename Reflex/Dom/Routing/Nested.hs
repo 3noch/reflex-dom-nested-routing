@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
-module Reflex.Dom.NestedRoute where
+module Reflex.Dom.Routing.Nested where
 
 import           Control.Lens                 (Rewrapped, Wrapped (..), iso, to,
                                                (^.))

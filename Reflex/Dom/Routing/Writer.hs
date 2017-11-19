@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
-module Reflex.Dom.RouteWriter where
+module Reflex.Dom.Routing.Writer where
 
 import           Control.Lens                 (Rewrapped, Wrapped (..), iso)
 import           Control.Monad.Exception      (MonadAsyncException,
@@ -28,7 +28,7 @@ import           Reflex.Dom.Builder.Immediate
 import           Reflex.Dom.Core
 import           Reflex.Host.Class
 
-import           Reflex.Dom.NestedRoute
+import           Reflex.Dom.Routing.Nested
 
 
 class (Reflex t, Monad m) => RouteWriter t segment m | m -> segment, m -> t where
