@@ -253,9 +253,7 @@ nextRouteSegment = do
 parentRouteSegments :: (MonadHold t m, MonadFix m, HasRoute t segment m, Eq segment) => m (Dynamic t [segment])
 parentRouteSegments = do
   ctx <- routeContext
-  holdUniqDyn $ do
-    allSegments <- _routeContext_allSegments ctx
-    pure $ take (_routeContext_currentDepth ctx - 1) allSegments
+  holdUniqDyn $ take (_routeContext_currentDepth ctx) <$> _routeContext_allSegments ctx
 
 -- | A simple helper that produces a routing event on 'getPostBuild'.
 redirectLocally :: (PostBuild t m) => [segment] -> m (Event t [segment])
