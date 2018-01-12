@@ -114,6 +114,8 @@ instance (DomBuilder t m, MonadHold t m, MonadFix m) => DomBuilder t (RouteT t s
   placeRawElement = lift . placeRawElement
   wrapRawElement e = lift . wrapRawElement e
 
+instance (Monad m, NotReady t m) => NotReady t (RouteT t segment m)
+
 instance MonadReader r m => MonadReader r (RouteT t segment m) where
   ask = lift ask
   local f (RouteT a) = RouteT $ mapReaderT (local f) a

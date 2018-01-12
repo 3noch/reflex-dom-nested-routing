@@ -91,6 +91,8 @@ instance (DomBuilder t m, MonadHold t m, MonadFix m) => DomBuilder t (RouteWrite
   placeRawElement = lift . placeRawElement
   wrapRawElement e = lift . wrapRawElement e
 
+instance (Monad m, NotReady t m) => NotReady t (RouteWriterT t segment m)
+
 deriving instance MonadReader r m => MonadReader r (RouteWriterT t segment m)
 
 instance RouteWriter t segment m => RouteWriter t segment (EventWriterT t w m) where
