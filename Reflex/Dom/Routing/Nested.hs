@@ -133,7 +133,7 @@ instance HasRoute t segment m => HasRoute t segment (DynamicWriterT t w m) where
   routeContext = lift routeContext
   withSegments f (DynamicWriterT a) = DynamicWriterT $ StrictState.mapStateT (withSegments f) a
 
-instance MonadDynamicWriter t w m => MonadDynamicWriter t w (RouteT t segment m) where
+instance DynamicWriter t w m => DynamicWriter t w (RouteT t segment m) where
   tellDyn = lift . tellDyn
 
 instance HasDocument m => HasDocument (RouteT t segment m)
@@ -143,6 +143,16 @@ instance HasJSContext m => HasJSContext (RouteT t segment m) where
 #ifndef ghcjs_HOST_OS
 instance MonadJSM m => MonadJSM (RouteT t segment m)
 #endif
+
+deriving instance DomRenderHook t m => DomRenderHook t (RouteT t segment m)
+
+instance HasJS x m => HasJS x (RouteT t segment m) where
+  type JSX (RouteT t segment m) = JSX m
+  liftJS = lift . liftJS
+
+instance (Prerender js t m, Monad m, Reflex t) => Prerender js t (RouteT t segment m) where
+  type Client (RouteT t segment m) = RouteT t segment (Client m)
+  prerender (RouteT a) (RouteT b) = RouteT $ prerender a b
 
 
 instance PrimMonad m => PrimMonad (RouteT t segment m) where

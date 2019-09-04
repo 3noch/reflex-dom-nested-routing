@@ -43,6 +43,15 @@ newtype RouteWriterT t segment m a = RouteWriterT { unRouteWriterT :: EventWrite
 instance (MonadWidget t m) => RouteWriter t segment (RouteWriterT t segment m) where
   tellRoute = RouteWriterT . tellEvent
 
+deriving instance DomRenderHook t m => DomRenderHook t (RouteWriterT t segment m)
+
+instance HasJS x m => HasJS x (RouteWriterT t segment m) where
+  type JSX (RouteWriterT t segment m) = JSX m
+  liftJS = lift . liftJS
+
+instance (Prerender js t m, Monad m, Reflex t) => Prerender js t (RouteWriterT t segment m) where
+  type Client (RouteWriterT t segment m) = RouteWriterT t segment (Client m)
+  prerender (RouteWriterT a) (RouteWriterT b) = RouteWriterT $ prerender a b
 
 instance Requester t m => Requester t (RouteWriterT t segment m) where
   type Request (RouteWriterT t segment m) = Request m
@@ -102,7 +111,7 @@ instance EventWriter t w m => EventWriter t w (RouteWriterT t segment m) where
 
 instance RouteWriter t segment m => RouteWriter t segment (DynamicWriterT t w m) where
   tellRoute = lift . tellRoute
-instance MonadDynamicWriter t w m => MonadDynamicWriter t w (RouteWriterT t segment m) where
+instance DynamicWriter t w m => DynamicWriter t w (RouteWriterT t segment m) where
   tellDyn = lift . tellDyn
 
 
