@@ -20,7 +20,6 @@ import           Control.Monad.Reader
 import           Control.Monad.Ref
 import qualified Control.Monad.State.Strict   as StrictState
 import           Data.Coerce                  (coerce)
-import           Foreign.JavaScript.TH
 import           Language.Javascript.JSaddle  (MonadJSM)
 import           Reflex
 import           Reflex.Dom.Builder.Class
@@ -45,11 +44,7 @@ instance (MonadWidget t m) => RouteWriter t segment (RouteWriterT t segment m) w
 
 deriving instance DomRenderHook t m => DomRenderHook t (RouteWriterT t segment m)
 
-instance HasJS x m => HasJS x (RouteWriterT t segment m) where
-  type JSX (RouteWriterT t segment m) = JSX m
-  liftJS = lift . liftJS
-
-instance (Prerender js t m, Monad m, Reflex t) => Prerender js t (RouteWriterT t segment m) where
+instance (Prerender t m, Monad m, Reflex t) => Prerender t (RouteWriterT t segment m) where
   type Client (RouteWriterT t segment m) = RouteWriterT t segment (Client m)
   prerender (RouteWriterT a) (RouteWriterT b) = RouteWriterT $ prerender a b
 
@@ -116,9 +111,6 @@ instance DynamicWriter t w m => DynamicWriter t w (RouteWriterT t segment m) whe
 
 
 instance HasDocument m => HasDocument (RouteWriterT t segment m)
-instance HasJSContext m => HasJSContext (RouteWriterT t segment m) where
-  type JSContextPhantom (RouteWriterT t segment m) = JSContextPhantom m
-  askJSContext = RouteWriterT askJSContext
 #ifndef ghcjs_HOST_OS
 instance MonadJSM m => MonadJSM (RouteWriterT segment t m)
 #endif
