@@ -32,7 +32,6 @@ import           Data.Maybe                   (listToMaybe)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import           Data.Text.Encoding           (decodeUtf8, encodeUtf8)
-import           Foreign.JavaScript.TH
 import           Language.Javascript.JSaddle  (MonadJSM)
 import           Reflex
 import           Reflex.Dom.Builder.Class
@@ -137,20 +136,14 @@ instance DynamicWriter t w m => DynamicWriter t w (RouteT t segment m) where
   tellDyn = lift . tellDyn
 
 instance HasDocument m => HasDocument (RouteT t segment m)
-instance HasJSContext m => HasJSContext (RouteT t segment m) where
-  type JSContextPhantom (RouteT t segment m) = JSContextPhantom m
-  askJSContext = RouteT askJSContext
+
 #ifndef ghcjs_HOST_OS
 instance MonadJSM m => MonadJSM (RouteT t segment m)
 #endif
 
 deriving instance DomRenderHook t m => DomRenderHook t (RouteT t segment m)
 
-instance HasJS x m => HasJS x (RouteT t segment m) where
-  type JSX (RouteT t segment m) = JSX m
-  liftJS = lift . liftJS
-
-instance (Prerender js t m, Monad m, Reflex t) => Prerender js t (RouteT t segment m) where
+instance (Prerender t m, Monad m, Reflex t) => Prerender t (RouteT t segment m) where
   type Client (RouteT t segment m) = RouteT t segment (Client m)
   prerender (RouteT a) (RouteT b) = RouteT $ prerender a b
 
